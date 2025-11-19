@@ -2,7 +2,7 @@
     "name": "repo2aicontext",
     "displayName": "Repo2AIContext",
     "description": "One-click snapshot of your workspace tree and file contents to the clipboard. Now with live refresh + token/char counters.",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "publisher": "Quentin-BRG",
     "license": "MIT",
     "repository": {
