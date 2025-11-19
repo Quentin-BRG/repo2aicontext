@@ -22,6 +22,7 @@
     ],
     "main": "./dist/extension.js",
     "scripts": {
+        "build": "npm run compile",
         "compile": "npx tsc -p .",
         "package": "npm run compile && npx vsce package --allow-missing-repository --allow-star-activation"
     },
