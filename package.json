@@ -1,0 +1,100 @@
+{
+    "name": "repo2aicontext",
+    "displayName": "Repo2AIContext",
+    "description": "One-click snapshot of your workspace tree and file contents to the clipboard. Now with live refresh + token/char counters.",
+    "version": "0.3.0",
+    "publisher": "QuentinBerger",
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "icon": "media/logo.png",
+    "galleryBanner": {
+        "color": "#0F172A",
+        "theme": "dark"
+    },
+    "activationEvents": [
+        "onCommand:repo2aicontext.capture",
+        "onView:repo2aicontextView"
+    ],
+    "main": "./dist/extension.js",
+    "scripts": {
+        "compile": "npx tsc -p .",
+        "package": "npm run compile && npx vsce package --allow-missing-repository --allow-star-activation"
+    },
+    "devDependencies": {
+        "@types/node": "^18.19.87",
+        "@types/vscode": "^1.80.0",
+        "@vscode/vsce": "^3.3.2",
+        "typescript": "^5.8.3"
+    },
+    "contributes": {
+        "commands": [
+            {
+                "command": "repo2aicontext.capture",
+                "title": "Repo2AIContext"
+            }
+        ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "repo2aicontext",
+                    "title": "Repo2AIContext",
+                    "icon": "media/camera.svg"
+                }
+            ]
+        },
+        "views": {
+            "repo2aicontext": [
+                {
+                    "type": "webview",
+                    "id": "repo2aicontextView",
+                    "name": "Snapshot"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "Repo2AIContext",
+            "properties": {
+                "repo2aicontext.ignoreGlobs": {
+                    "type": "array",
+                    "default": [
+                        "**/node_modules/**",
+                        "**/.git/**",
+                        "**/*.pyc",
+                        "**/__pycache__/**"
+                    ],
+                    "description": "Globs to exclude from snapshot."
+                },
+                "repo2aicontext.blacklistNames": {
+                    "type": "array",
+                    "default": [],
+                    "description": "File or folder names to exclude (case-insensitive). Example: ['.env', 'build', 'dist']."
+                },
+                "repo2aicontext.blacklistExtensions": {
+                    "type": "array",
+                    "default": [],
+                    "description": "File extensions to exclude (with or without leading dot). Example: ['log', '.map', 'lock']."
+                },
+                "repo2aicontext.maxFileSizeKB": {
+                    "type": "number",
+                    "default": 1024,
+                    "description": "Maximum text file size (KB) to include in full; larger files are truncated. Counters reflect truncation."
+                },
+                "repo2aicontext.skipBinaries": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Skip binary files and insert placeholder instead."
+                },
+                "repo2aicontext.autoRefresh": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Auto-refresh the tree and counters when files change."
+                }
+            }
+        }
+    }
+}
