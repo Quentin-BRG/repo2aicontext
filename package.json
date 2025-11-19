@@ -5,6 +5,10 @@
     "version": "0.3.0",
     "publisher": "QuentinBerger",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Quentin-BRG/repo2aicontext.git"
+    },
     "engines": {
         "vscode": "^1.80.0"
     },
@@ -24,7 +28,7 @@
     "scripts": {
         "build": "npm run compile",
         "compile": "npx tsc -p .",
-        "package": "npm run compile && npx vsce package --allow-missing-repository --allow-star-activation"
+        "package": "npm run compile && npx vsce package --allow-missing-repository --allow-star-activation --out builds"
     },
     "devDependencies": {
         "@types/node": "^18.19.87",
