@@ -14,12 +14,12 @@ Repo2AIContext provides a performant sidebar view to scan large repositories, es
 
 ## ✨ Features
 
-* **📸 One-Click Capture**: Generates a text bundle containing your directory tree and file contents, ready to paste into ChatGPT, Claude, or local LLMs.
-* **⚡ Live Sidebar**: Browse your file tree with tri-state checkboxes.
-* **🧮 Token & Char Counters**: Real-time estimates (`~1 token ≈ 4 chars`) per file and folder to help you stay within context windows.
-* **VX Smart Filtering**: Automatically respects `.gitignore`, skips binary files, and ignores heavy directories (`node_modules`, `.git`, `dist`) to keep the UI snappy.
-* **🔒 Privacy Focused**: Operations happen entirely in memory. Nothing is written to disk; data goes straight to your clipboard.
-* **⚙️ Inline Blacklisting**: Quickly exclude specific file names or extensions directly from the sidebar settings.
+-   **📸 One-Click Capture**: Generates a text bundle containing your directory tree and file contents, ready to paste into ChatGPT, Claude, or local LLMs.
+-   **⚡ Live Sidebar**: Browse your file tree with tri-state checkboxes.
+-   **🧮 Token & Char Counters**: Real-time estimates (`~1 token ≈ 4 chars`) per file and folder to help you stay within context windows.
+-   **VX Smart Filtering**: Automatically respects `.gitignore`, skips binary files, and ignores heavy directories (`node_modules`, `.git`, `dist`) to keep the UI snappy.
+-   **🔒 Privacy Focused**: Operations happen entirely in memory. Nothing is written to disk; data goes straight to your clipboard.
+-   **⚙️ Inline Blacklisting**: Quickly exclude specific file names or extensions directly from the sidebar settings.
 
 ## 🚀 Usage
 
@@ -50,19 +50,19 @@ import { ... } from "module";
 
 ────────────────── assets/logo.png ──────────────────
 <binary skipped>
-````
+```
 
 ## ⚙️ Configuration
 
 You can configure these settings in your VS Code `settings.json`:
 
-| Setting | Description | Default |
-| :--- | :--- | :--- |
-| `repo2aicontext.ignoreGlobs` | Additional glob patterns to exclude (on top of `.gitignore`). | `["**/node_modules/**", ...]` |
-| `repo2aicontext.maxFileSizeKB` | Max text file size before truncation. | `1024` |
-| `repo2aicontext.skipBinaries` | Replace binary files with a placeholder. | `true` |
-| `repo2aicontext.blacklistNames` | Exclude specific file/folder names (e.g., `.env`). | `[]` |
-| `repo2aicontext.blacklistExtensions`| Exclude specific extensions (e.g., `.log`). | `[]` |
+| Setting                              | Description                                                   | Default                       |
+| :----------------------------------- | :------------------------------------------------------------ | :---------------------------- |
+| `repo2aicontext.ignoreGlobs`         | Additional glob patterns to exclude (on top of `.gitignore`). | `["**/node_modules/**", ...]` |
+| `repo2aicontext.maxFileSizeKB`       | Max text file size before truncation.                         | `1024`                        |
+| `repo2aicontext.skipBinaries`        | Replace binary files with a placeholder.                      | `true`                        |
+| `repo2aicontext.blacklistNames`      | Exclude specific file/folder names (e.g., `.env`).            | `[]`                          |
+| `repo2aicontext.blacklistExtensions` | Exclude specific extensions (e.g., `.log`).                   | `[]`                          |
 
 ## 🛠️ Local Development
 
@@ -76,7 +76,7 @@ You can configure these settings in your VS Code `settings.json`:
     ```
 3.  Install the generated `.vsix` file manually or press `F5` to debug.
 
------
+---
 
 **License**
 [MIT](LICENSE.md) © 2025 Quentin Berger

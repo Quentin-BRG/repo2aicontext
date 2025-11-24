@@ -320,15 +320,17 @@ export class FileScanner {
                         await Promise.race(active);
                     }
 
-                    if (processed >= MAX_FILES_SOFT && !this.warnedSoftCap) {
-                        this.warnedSoftCap = true;
-                        this.emitNotice(
-                            "softcap-scan",
-                            "warning",
-                            `Stopped at ${formatNumber(
-                                MAX_FILES_SOFT
-                            )} files for performance.`
-                        );
+                    if (processed >= MAX_FILES_SOFT) {
+                        if (!this.warnedSoftCap) {
+                            this.warnedSoftCap = true;
+                            this.emitNotice(
+                                "softcap-scan",
+                                "warning",
+                                `Stopped at ${formatNumber(
+                                    MAX_FILES_SOFT
+                                )} files for performance.`
+                            );
+                        }
                         await Promise.allSettled(active);
                         return finalizeTree(dirMap);
                     }
