@@ -8,7 +8,10 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             "repo2aicontextView",
-            provider
+            provider,
+            {
+                webviewOptions: { retainContextWhenHidden: true },
+            }
         ),
         vscode.commands.registerCommand(
             "repo2aicontext.capture",

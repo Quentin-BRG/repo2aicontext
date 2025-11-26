@@ -11,6 +11,7 @@ import {
 } from "../constants";
 import { configManager } from "../config";
 import { formatNumber } from "../utils/formatting";
+import { logError, logInfo, logWarn } from "../logger";
 
 export interface ScanNotice {
     level: "info" | "warning" | "error";
@@ -22,17 +23,21 @@ export type ScanProgressHandler = (current: number, rel?: string) => void;
 interface FileScannerOptions {
     onNotice?: (notice: ScanNotice) => void;
     isCancelled?: () => boolean;
+    label?: string;
 }
 
 export class FileScanner {
     private readonly config = configManager.get();
     private readonly reported = new Set<string>();
     private warnedSoftCap = false;
+    private readonly label: string;
 
     constructor(
         private readonly root: vscode.Uri,
         private readonly options: FileScannerOptions = {}
-    ) {}
+    ) {
+        this.label = options.label ?? "scan";
+    }
 
     public async countFiles(
         onProgress?: ScanProgressHandler
@@ -58,9 +63,17 @@ export class FileScanner {
         const queue: { uri: vscode.Uri; rel: string }[] = [
             { uri: this.root, rel: "" },
         ];
+        const visitedDirs = new Set<string>();
+        let dirVisited = 0;
+        let maxDepth = 0;
+        const started = Date.now();
+
+        logInfo(this.prefix(`countFiles start (root=${this.root.fsPath})`));
 
         while (queue.length && !this.isCancelled()) {
             const { uri, rel } = queue.shift()!;
+            if (visitedDirs.has(rel)) continue;
+            visitedDirs.add(rel);
             let entries: [string, vscode.FileType][];
 
             try {
@@ -68,6 +81,9 @@ export class FileScanner {
             } catch {
                 continue;
             }
+
+            dirVisited++;
+            maxDepth = Math.max(maxDepth, depthOf(rel));
 
             if (
                 smartIgnore &&
@@ -131,12 +147,31 @@ export class FileScanner {
                                 MAX_FILES_SOFT
                             )} files for performance.`
                         );
+                        logWarn(
+                            this.prefix(
+                                `Soft cap reached during count at ${total} files.`
+                            )
+                        );
                         return total;
                     }
                 }
             }
         }
 
+        if (this.isCancelled()) {
+            logInfo(
+                this.prefix(
+                    `countFiles cancelled after ${total} files (dirs=${dirVisited}).`
+                )
+            );
+            return total;
+        }
+
+        logInfo(
+            this.prefix(
+                `countFiles complete in ${Date.now() - started}ms (files=${total}, dirs=${dirVisited}, maxDepth=${maxDepth}).`
+            )
+        );
         return total;
     }
 
@@ -152,6 +187,14 @@ export class FileScanner {
             blacklistExtensions,
         } = this.config;
         const maxBytes = Math.max(1, maxKB) * 1024;
+        const started = Date.now();
+        let maxDepth = 0;
+        let dirVisited = 0;
+        logInfo(
+            this.prefix(
+                `buildTree start (root=${this.root.fsPath}, maxKB=${maxKB}, skipBin=${skipBin}, smartIgnore=${smartIgnore}, dirEntrySkipThreshold=${dirEntrySkipThreshold}, blacklistNames=${blacklistNames.length}, blacklistExts=${blacklistExtensions.length}).`
+            )
+        );
 
         const nameBlacklist = new Set(
             blacklistNames.map((n) => n.toLowerCase()).filter(Boolean)
@@ -166,19 +209,26 @@ export class FileScanner {
         const dirMap = new Map<string, TreeNode>();
         const ensureDir = (rel: string, name?: string) => {
             if (!dirMap.has(rel)) {
-                dirMap.set(rel, {
+                const node: TreeNode = {
                     name: name ?? (rel ? rel.split("/").pop()! : ""),
                     type: "dir",
                     important: true,
                     path: rel,
                     children: [],
-                });
+                };
+                dirMap.set(rel, node);
 
-                const parentRel = parentRelOf(rel);
-                const parent = dirMap.get(parentRel);
-                if (parent) {
-                    parent.children = parent.children ?? [];
-                    parent.children.push(dirMap.get(rel)!);
+                // Only attach to parent if this is not the root node.
+                if (rel) {
+                    const parentRel = parentRelOf(rel);
+                    const parent = dirMap.get(parentRel);
+                    if (parent) {
+                        parent.children = parent.children ?? [];
+                        // Avoid duplicate links if ensureDir is called repeatedly.
+                        if (!parent.children.includes(node)) {
+                            parent.children.push(node);
+                        }
+                    }
                 }
             }
             return dirMap.get(rel)!;
@@ -189,10 +239,13 @@ export class FileScanner {
         const dirQueue: { uri: vscode.Uri; rel: string }[] = [
             { uri: this.root, rel: "" },
         ];
+        const visitedDirs = new Set<string>();
         const active: Promise<void>[] = [];
 
         while (dirQueue.length && !this.isCancelled()) {
             const { uri, rel } = dirQueue.shift()!;
+            if (visitedDirs.has(rel)) continue;
+            visitedDirs.add(rel);
             let entries: [string, vscode.FileType][];
             try {
                 entries = await vscode.workspace.fs.readDirectory(uri);
@@ -201,6 +254,8 @@ export class FileScanner {
             }
 
             ensureDir(rel);
+            dirVisited++;
+            maxDepth = Math.max(maxDepth, depthOf(rel));
 
             if (
                 smartIgnore &&
@@ -232,6 +287,7 @@ export class FileScanner {
                 if (type & vscode.FileType.SymbolicLink) continue;
 
                 if (type & vscode.FileType.Directory) {
+                    maxDepth = Math.max(maxDepth, depthOf(childRel));
                     if (smartIgnore && HEAVY_DIR_NAMES.has(name)) {
                         this.emitNotice(
                             `skip-heavy:${childRel}`,
@@ -259,6 +315,7 @@ export class FileScanner {
                         continue;
                     }
 
+                    maxDepth = Math.max(maxDepth, depthOf(childRel));
                     const job = (async () => {
                         try {
                             const isBinary = skipBin && BINARY_EXTS.has(ext);
@@ -330,6 +387,11 @@ export class FileScanner {
                                     MAX_FILES_SOFT
                                 )} files for performance.`
                             );
+                            logWarn(
+                                this.prefix(
+                                    `Soft cap reached during build at ${processed} files.`
+                                )
+                            );
                         }
                         await Promise.allSettled(active);
                         return finalizeTree(dirMap);
@@ -339,7 +401,20 @@ export class FileScanner {
         }
 
         await Promise.allSettled(active);
-        if (this.isCancelled()) return [];
+        if (this.isCancelled()) {
+            logInfo(
+                this.prefix(
+                    `buildTree cancelled after processing ${processed} files (dirs=${dirVisited}).`
+                )
+            );
+            return [];
+        }
+
+        logInfo(
+            this.prefix(
+                `buildTree complete in ${Date.now() - started}ms (files=${processed}, dirs=${dirVisited}, maxDepth=${maxDepth}, softCap=${this.warnedSoftCap}).`
+            )
+        );
         return finalizeTree(dirMap);
     }
 
@@ -350,11 +425,23 @@ export class FileScanner {
     ) {
         if (this.reported.has(key)) return;
         this.reported.add(key);
+        const prefixed = this.prefix(message);
+        if (level === "error") {
+            logError(prefixed);
+        } else if (level === "warning") {
+            logWarn(prefixed);
+        } else {
+            logInfo(prefixed);
+        }
         this.options.onNotice?.({ level, message });
     }
 
     private isCancelled(): boolean {
         return this.options.isCancelled?.() ?? false;
+    }
+
+    private prefix(message: string): string {
+        return `[${this.label}] ${message}`;
     }
 }
 
@@ -363,59 +450,103 @@ function parentRelOf(rel: string): string {
     return idx === -1 ? "" : rel.slice(0, idx);
 }
 
+function depthOf(rel: string): number {
+    if (!rel) return 0;
+    return rel.split("/").length;
+}
+
 function finalizeTree(dirMap: Map<string, TreeNode>): TreeNode[] {
     const root = dirMap.get("");
     if (!root) return [];
 
-    const walk = (node: TreeNode): TreeNode => {
+    type Frame = { node: TreeNode; exit: boolean };
+    const visiting = new Set<TreeNode>();
+    const stack: Frame[] = [{ node: root, exit: false }];
+
+    while (stack.length) {
+        const { node, exit } = stack.pop()!;
+
         if (node.type === "file") {
             node.aggChars = node.chars || 0;
             node.aggTokens = node.tokens || 0;
             node.aggFiles = 1;
             node.aggSkipped = node.skipped ? 1 : 0;
             node.aggTruncated = node.truncated ? 1 : 0;
-            return node;
+            continue;
         }
 
-        let aggChars = 0;
-        let aggTokens = 0;
-        let aggFiles = 0;
-        let aggSkipped = 0;
-        let aggTruncated = 0;
+        if (exit) {
+            let aggChars = 0;
+            let aggTokens = 0;
+            let aggFiles = 0;
+            let aggSkipped = 0;
+            let aggTruncated = 0;
 
-        (node.children ?? []).forEach((child) => {
-            const walked = walk(child);
-            aggChars += walked.aggChars || 0;
-            aggTokens += walked.aggTokens || 0;
-            aggFiles += walked.aggFiles || 0;
-            aggSkipped += walked.aggSkipped || 0;
-            aggTruncated += walked.aggTruncated || 0;
+            (node.children ?? []).forEach((child) => {
+                aggChars += child.aggChars || 0;
+                aggTokens += child.aggTokens || 0;
+                aggFiles += child.aggFiles || 0;
+                aggSkipped += child.aggSkipped || 0;
+                aggTruncated += child.aggTruncated || 0;
+            });
+
+            node.aggChars = aggChars;
+            node.aggTokens = aggTokens;
+            node.aggFiles = aggFiles;
+            node.aggSkipped = aggSkipped;
+            node.aggTruncated = aggTruncated;
+
+            const hasImportantChild = (node.children ?? []).some(
+                (child) => child.important
+            );
+            node.important =
+                !NON_IMPORTANT_DIRS.has(node.name) && hasImportantChild;
+            visiting.delete(node);
+            continue;
+        }
+
+        if (visiting.has(node)) continue;
+        visiting.add(node);
+
+        const seenChildren = new Set<string>();
+        node.children = (node.children ?? []).filter((child) => {
+            if (!child) return false;
+            if (child === node) return false;
+            if (visiting.has(child)) return false;
+            const key = `${child.type}:${child.path}`;
+            if (seenChildren.has(key)) return false;
+            seenChildren.add(key);
+            return true;
         });
 
-        node.aggChars = aggChars;
-        node.aggTokens = aggTokens;
-        node.aggFiles = aggFiles;
-        node.aggSkipped = aggSkipped;
-        node.aggTruncated = aggTruncated;
+        stack.push({ node, exit: true });
+        for (let i = (node.children?.length ?? 0) - 1; i >= 0; i--) {
+            stack.push({ node: node.children![i], exit: false });
+        }
+    }
 
-        const hasImportantChild = (node.children ?? []).some(
-            (child) => child.important
-        );
-        node.important = !NON_IMPORTANT_DIRS.has(node.name) && hasImportantChild;
-        return node;
-    };
-
-    walk(root);
     return sortTree(root.children ?? []);
 }
 
 function sortTree(nodes: TreeNode[]): TreeNode[] {
-    nodes.sort((a, b) => {
+    const compare = (a: TreeNode, b: TreeNode) => {
         if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
         return a.name.localeCompare(b.name);
-    });
-    nodes.forEach((node) => {
-        if (node.children) sortTree(node.children);
-    });
+    };
+
+    const queue: TreeNode[][] = [nodes];
+    const visited = new Set<TreeNode>();
+
+    while (queue.length) {
+        const arr = queue.pop()!;
+        arr.sort(compare);
+        arr.forEach((node) => {
+            if (visited.has(node)) return;
+            visited.add(node);
+            if (node.children && node.children.length) {
+                queue.push(node.children);
+            }
+        });
+    }
     return nodes;
 }
